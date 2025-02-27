@@ -1,3 +1,4 @@
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -14,7 +15,7 @@ public class MapLoader : MonoBehaviour
     private void Awake()
     {
         DetectWhiteRegions();
-        CreateMeshesFromRegions();
+        StartCoroutine(nameof(CreateMeshesFromRegions));
     }
 
     void DetectWhiteRegions()
@@ -37,8 +38,6 @@ public class MapLoader : MonoBehaviour
                 }
             }
         }
-
-        Debug.Log($"Znaleziono {whiteRegions.Count} oddzielnych bia�ych obszar�w.");
     }
 
     private void FloodFillStack(int startX, int startY, List<Vector2Int> region)
@@ -69,11 +68,12 @@ public class MapLoader : MonoBehaviour
         return x >= 0 && x < mapTexture.width && y >= 0 && y < mapTexture.height;
     }
 
-    void CreateMeshesFromRegions()
+    IEnumerator CreateMeshesFromRegions()
     {
         foreach (List<Vector2Int> item in whiteRegions)
         {
             GenerateMeshForRegion(item);
+            yield return new WaitForSeconds(0.1f);
         }
     }
 
@@ -87,35 +87,91 @@ public class MapLoader : MonoBehaviour
         Mesh mesh = new Mesh();
         List<Vector3> vertices = new List<Vector3>();
         List<int> triangles = new List<int>();
+        Dictionary<Vector2Int, int> vertexIndexMap = new Dictionary<Vector2Int, int>();
 
         foreach (Vector2Int point in region)
         {
-            int index = vertices.Count;
-
-            vertices.Add(new Vector3(point.x, point.y, 0));
-            vertices.Add(new Vector3(point.x + 1, point.y, 0));
-            vertices.Add(new Vector3(point.x, point.y + 1, 0));
-            vertices.Add(new Vector3(point.x + 1, point.y + 1, 0));
-
-            triangles.Add(index);
-            triangles.Add(index + 2);
-            triangles.Add(index + 1);
-
-            triangles.Add(index + 1);
-            triangles.Add(index + 2);
-            triangles.Add(index + 3);
+            Vector3 vertexPos = new Vector3(point.x, point.y, 0);
+            if (!vertexIndexMap.ContainsKey(point))
+            {
+                vertexIndexMap[point] = vertices.Count;
+                vertices.Add(vertexPos);
+            }
         }
 
-        mesh.vertices = vertices.ToArray();
-        mesh.triangles = triangles.ToArray();
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
+        foreach (Vector2Int point in region)
+        {
+            if (vertexIndexMap.ContainsKey(point) &&
+                vertexIndexMap.ContainsKey(new Vector2Int(point.x + 1, point.y)) &&
+                vertexIndexMap.ContainsKey(new Vector2Int(point.x, point.y + 1)) &&
+                vertexIndexMap.ContainsKey(new Vector2Int(point.x + 1, point.y + 1)))
+            {
+                int i0 = vertexIndexMap[point];
+                int i1 = vertexIndexMap[new Vector2Int(point.x + 1, point.y)];
+                int i2 = vertexIndexMap[new Vector2Int(point.x, point.y + 1)];
+                int i3 = vertexIndexMap[new Vector2Int(point.x + 1, point.y + 1)];
 
-        meshFilter.mesh = mesh;
-        meshRenderer.material = testMat;
-        meshCollider.sharedMesh = mesh;
+                triangles.Add(i0);
+                triangles.Add(i2);
+                triangles.Add(i1);
+                triangles.Add(i2);
+                triangles.Add(i3);
+                triangles.Add(i1);
+            }
+        }
+
+        if (vertices.Count > 0 && triangles.Count > 0)
+        {
+            mesh.Clear();
+            mesh.vertices = vertices.ToArray();
+            mesh.triangles = triangles.ToArray();
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            meshFilter.mesh = mesh;
+            meshRenderer.material = testMat;
+            meshCollider.sharedMesh = mesh;
+        }
     }
+    //void GenerateMeshForRegion(List<Vector2Int> region)
+    //{
+    //    GameObject meshObject = Instantiate(provincePrefab, transform);
+    //    MeshFilter meshFilter = meshObject.GetComponent<MeshFilter>();
+    //    MeshRenderer meshRenderer = meshObject.GetComponent<MeshRenderer>();
+    //    MeshCollider meshCollider = meshObject.GetComponent<MeshCollider>();
 
+    //    Mesh mesh = new Mesh();
+    //    List<Vector3> vertices;
+    //    List<int> triangles;
+
+    //    vertices = new List<Vector3>
+    //    {
+    //        new Vector3(0, 0, 0),
+    //        new Vector3(1, 0, 0),
+    //        new Vector3(0, 1, 0),
+    //        new Vector3(1, 1, 0)
+    //    };
+
+    //    triangles = new List<int>
+    //    {
+    //        0, 2, 1, // Pierwszy trójkąt
+    //        2, 3, 1  // Drugi trójkąt
+    //    };
+
+
+    //    if (vertices.Count > 0 && triangles.Count > 0)
+    //    {
+    //        mesh.Clear();
+    //        mesh.vertices = vertices.ToArray();
+    //        mesh.triangles = triangles.ToArray();
+    //        mesh.RecalculateNormals();
+    //        mesh.RecalculateBounds();
+
+    //        meshFilter.mesh = mesh;
+    //        meshRenderer.material = testMat;
+    //        meshCollider.sharedMesh = mesh;
+    //    }
+    //}
 
 
     //void GenerateMeshForRegion(List<Vector2Int> region)
